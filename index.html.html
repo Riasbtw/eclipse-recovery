@@ -1,0 +1,673 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>E.C.L.I.P.S.E. // Recovery Terminal v7.4</title>
+<!-- Tailwind CSS for utility styling -->
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+
+  :root {
+    --green: #9bffb0;
+    --dim-green: #387046;
+    --dark-green: #08120d;
+    --panel-bg: rgba(6, 16, 10, 0.95);
+    --border-line: rgba(155, 255, 176, 0.3);
+    --alert-red: #ff5555;
+    --alert-glow: rgba(255, 85, 85, 0.4);
+  }
+
+  * {
+    box-sizing: border-box;
+    font-family: 'Share Tech Mono', 'Consolas', 'Courier New', monospace;
+  }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    overflow: hidden;
+    background: #030805;
+    color: #d8e8dc;
+    user-select: none;
+  }
+
+  /* CRT & Sci-Fi Background FX */
+  .wallpaper {
+    position: fixed;
+    inset: 0;
+    background: radial-gradient(ellipse at 50% 45%, #12291c 0%, #08140e 55%, #020503 100%);
+  }
+
+  .wallpaper::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    opacity: 0.15;
+    background-image: 
+      linear-gradient(rgba(155, 255, 176, 0.15) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(155, 255, 176, 0.15) 1px, transparent 1px);
+    background-size: 36px 36px;
+  }
+
+  .scanlines {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 50;
+    background: linear-gradient(
+      rgba(18, 16, 16, 0) 50%, 
+      rgba(0, 0, 0, 0.25) 50%
+    ), linear-gradient(
+      90deg,
+      rgba(255, 0, 0, 0.03),
+      rgba(0, 255, 0, 0.01),
+      rgba(0, 0, 255, 0.03)
+    );
+    background-size: 100% 3px, 6px 100%;
+  }
+
+  .flicker {
+    animation: crtFlicker 0.15s infinite alternate;
+  }
+
+  @keyframes crtFlicker {
+    0% { opacity: 0.97; }
+    100% { opacity: 1; }
+  }
+
+  /* Window & UI Component Styling */
+  .terminal-window {
+    display: none;
+    position: absolute;
+    z-index: 20;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: min(820px, calc(100vw - 24px));
+    max-height: calc(100vh - 80px);
+    background: var(--panel-bg);
+    border: 1px solid var(--green);
+    box-shadow: 0 0 25px rgba(155, 255, 176, 0.15), 0 15px 50px rgba(0, 0, 0, 0.8);
+    backdrop-filter: blur(8px);
+  }
+
+  .terminal-window.active {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .titlebar {
+    height: 38px;
+    background: rgba(18, 45, 28, 0.9);
+    border-bottom: 1px solid var(--border-line);
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+    color: var(--green);
+    letter-spacing: 1px;
+    font-size: 13px;
+    text-shadow: 0 0 6px rgba(155, 255, 176, 0.5);
+  }
+
+  .close-btn {
+    margin-left: auto;
+    border: none;
+    background: transparent;
+    color: var(--green);
+    font-size: 18px;
+    cursor: pointer;
+    padding: 0 8px;
+    transition: all 0.2s;
+  }
+
+  .close-btn:hover {
+    color: #fff;
+    background: rgba(255, 85, 85, 0.4);
+  }
+
+  .toolbar {
+    padding: 8px 14px;
+    background: rgba(10, 26, 17, 0.6);
+    border-bottom: 1px solid var(--border-line);
+    color: #8eb99a;
+    font-size: 11px;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .content-area {
+    padding: 20px;
+    overflow-y: auto;
+    max-height: calc(100vh - 160px);
+  }
+
+  .file-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+    gap: 14px;
+  }
+
+  .file-card {
+    border: 1px solid rgba(155, 255, 176, 0.15);
+    background: rgba(12, 32, 20, 0.4);
+    padding: 14px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    transition: all 0.15s ease-in-out;
+  }
+
+  .file-card:hover, .file-card:focus {
+    background: rgba(155, 255, 176, 0.12);
+    border-color: var(--green);
+    box-shadow: 0 0 10px rgba(155, 255, 176, 0.2);
+    outline: none;
+    transform: translateY(-1px);
+  }
+
+  .file-card .icon {
+    font-size: 26px;
+    filter: drop-shadow(0 0 4px rgba(155, 255, 176, 0.4));
+  }
+
+  /* Document Typography */
+  .doc-container {
+    line-height: 1.6;
+    font-size: 13px;
+  }
+
+  .doc-container h2 {
+    color: var(--green);
+    font-size: 18px;
+    border-bottom: 1px solid var(--border-line);
+    padding-bottom: 6px;
+    margin-bottom: 12px;
+    letter-spacing: 1px;
+    text-shadow: 0 0 5px rgba(155, 255, 176, 0.4);
+  }
+
+  .meta-tag {
+    color: #79a884;
+    font-size: 11px;
+    margin-bottom: 16px;
+    background: rgba(8, 22, 14, 0.6);
+    padding: 8px 12px;
+    border-left: 3px solid var(--green);
+  }
+
+  .chat-entry {
+    padding: 10px 14px;
+    margin: 8px 0;
+    border-left: 2px solid var(--dim-green);
+    background: rgba(155, 255, 176, 0.03);
+    border-radius: 0 4px 4px 0;
+  }
+
+  .chat-entry.levi {
+    border-left-color: var(--green);
+    background: rgba(155, 255, 176, 0.07);
+  }
+
+  .chat-entry .time {
+    color: #6a9675;
+    font-size: 11px;
+    margin-right: 6px;
+  }
+
+  .corrupt-notice {
+    color: #ff8888;
+    background: rgba(255, 85, 85, 0.08);
+    border: 1px dashed var(--alert-red);
+    padding: 12px;
+    margin-top: 20px;
+    font-size: 12px;
+    box-shadow: 0 0 10px rgba(255, 85, 85, 0.1);
+  }
+
+  /* Custom Scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: rgba(4, 12, 7, 0.8);
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--dim-green);
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--green);
+  }
+</style>
+</head>
+<body class="flicker">
+<div class="wallpaper"></div>
+<div class="scanlines"></div>
+
+<!-- MAIN DESKTOP AREA -->
+<main class="relative z-10 h-[calc(100vh-38px)] p-6 md:p-10">
+  
+  <!-- DESKTOP DRIVE ICON -->
+  <div 
+    class="file-card w-32 flex-col text-center p-4 cursor-pointer select-none"
+    tabindex="0" 
+    role="button" 
+    aria-label="USB-Laufwerk USB_RECOVERY öffnen" 
+    onclick="openWindow('explorer')" 
+    onkeydown="if(event.key==='Enter'||event.key===' '){openWindow('explorer');}"
+  >
+    <div class="text-4xl mb-1 text-[#9bffb0] filter drop-shadow-[0_0_8px_rgba(155,255,176,0.6)]">▣</div>
+    <div class="font-bold text-xs tracking-wider text-emerald-100">USB_RECOVERY</div>
+    <div class="text-[10px] text-emerald-400 opacity-70">Wechseldatenträger<br>(F:)</div>
+  </div>
+
+  <!-- DESKTOP HEADER INFO -->
+  <div class="absolute right-6 top-6 text-right text-emerald-500/60 text-xs tracking-widest leading-relaxed pointer-events-none hidden sm:block">
+    E.C.L.I.P.S.E. BUNKERSYSTEM OS v7.4<br>
+    RECOVERY TERMINAL // SEKTOR 07<br>
+    SITZUNG STATUS: AMTLICH AUTHORISIERT
+  </div>
+
+</main>
+
+<!-- TASKBAR -->
+<div class="fixed bottom-0 left-0 right-0 h-[38px] z-40 bg-[#040d08]/95 border-t border-[var(--border-line)] flex items-center px-4 gap-4 text-xs text-emerald-400 select-none">
+  <span class="flex items-center gap-1.5 text-[var(--green)] font-bold">
+    <span class="animate-pulse">◈</span> E.C.L.I.P.S.E. OS
+  </span>
+  <span class="opacity-30">|</span>
+  <span>TERMINAL RECOVERY SESSION</span>
+  <span class="ml-auto font-mono text-[11px] tracking-wider text-emerald-300 flex items-center gap-2">
+    <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+    STATUS: SYSTEM INSTABIL | 03.11.2026
+  </span>
+</div>
+
+<!-- ================= WINDOW 1: EXPLORER MAIN (F:\) ================= -->
+<section class="terminal-window" id="explorer" aria-label="USB Datei Explorer">
+  <header class="titlebar">
+    <span>▣ &nbsp; FILE EXPLORER — USB_RECOVERY (F:)</span>
+    <button class="close-btn" onclick="closeWindow('explorer')" aria-label="Schließen">×</button>
+  </header>
+  <div class="toolbar">
+    <span>Dieser PC</span>
+    <span>›</span>
+    <span class="text-[var(--green)]">USB_RECOVERY (F:)</span>
+    <span class="ml-auto text-emerald-500/70">5 ELEMENTE</span>
+  </div>
+  <div class="content-area">
+    <div class="file-grid">
+      <!-- ECLIPSE_RECOVERY (UNPROTECTED) -->
+      <div class="file-card" tabindex="0" role="button" onclick="openWindow('folder_eclipse')" onkeydown="if(event.key==='Enter') openWindow('folder_eclipse')">
+        <span class="icon">📁</span>
+        <div class="overflow-hidden">
+          <div class="font-bold text-xs truncate">ECLIPSE_RECOVERY</div>
+          <div class="text-[10px] text-emerald-500/70">Ordner · 1 Element</div>
+        </div>
+      </div>
+
+      <!-- STROMVERSORGUNG (PROTECTED) -->
+      <div class="file-card" tabindex="0" role="button" onclick="promptPassword('Stromversorgung & Notstrom', 'folder_power')" onkeydown="if(event.key==='Enter') promptPassword('Stromversorgung & Notstrom', 'folder_power')">
+        <span class="icon">🔒</span>
+        <div class="overflow-hidden">
+          <div class="font-bold text-xs truncate">STROMVERSORGUNG</div>
+          <div class="text-[10px] text-amber-400/80">Geschützt · 1 Element</div>
+        </div>
+      </div>
+
+      <!-- LISTE_BEWOHNER (PROTECTED) -->
+      <div class="file-card" tabindex="0" role="button" onclick="promptPassword('Liste Bewohner', 'folder_residents')" onkeydown="if(event.key==='Enter') promptPassword('Liste Bewohner', 'folder_residents')">
+        <span class="icon">🔒</span>
+        <div class="overflow-hidden">
+          <div class="font-bold text-xs truncate">LISTE_BEWOHNER</div>
+          <div class="text-[10px] text-amber-400/80">Geschützt · 1 Element</div>
+        </div>
+      </div>
+
+      <!-- VORRAETE_RATIONEN (PROTECTED) -->
+      <div class="file-card" tabindex="0" role="button" onclick="promptPassword('Vorräte & Rationen', 'folder_supplies')" onkeydown="if(event.key==='Enter') promptPassword('Vorräte & Rationen', 'folder_supplies')">
+        <span class="icon">🔒</span>
+        <div class="overflow-hidden">
+          <div class="font-bold text-xs truncate">VORRAETE_RATIONEN</div>
+          <div class="text-[10px] text-amber-400/80">Geschützt · 1 Element</div>
+        </div>
+      </div>
+
+      <!-- SICHERHEIT_BUNKER (PROTECTED) -->
+      <div class="file-card" tabindex="0" role="button" onclick="promptPassword('Sicherheit & Verteidigung', 'folder_security')" onkeydown="if(event.key==='Enter') promptPassword('Sicherheit & Verteidigung', 'folder_security')">
+        <span class="icon">🔒</span>
+        <div class="overflow-hidden">
+          <div class="font-bold text-xs truncate">SICHERHEIT_BUNKER</div>
+          <div class="text-[10px] text-amber-400/80">Geschützt · 1 Element</div>
+        </div>
+      </div>
+    </div>
+    <p class="mt-6 text-[11px] text-emerald-600/80 italic">Doppelklicken / Anwählen zum Öffnen der Ordner. Geschützte Ordner erfordern Sicherheitsfreigabe.</p>
+  </div>
+</section>
+
+<!-- ================= WINDOW 2: ECLIPSE_RECOVERY FOLDER ================= -->
+<section class="terminal-window" id="folder_eclipse" aria-label="Ordner ECLIPSE_RECOVERY">
+  <header class="titlebar">
+    <span>📁 &nbsp; ECLIPSE_RECOVERY</span>
+    <button class="close-btn" onclick="closeWindow('folder_eclipse')" aria-label="Schließen">×</button>
+  </header>
+  <div class="toolbar">
+    <span>USB_RECOVERY (F:)</span>
+    <span>›</span>
+    <span class="text-[var(--green)]">ECLIPSE_RECOVERY</span>
+    <span class="ml-auto text-emerald-500/70">1 ELEMENT</span>
+  </div>
+  <div class="content-area">
+    <div class="file-grid">
+      <div class="file-card" tabindex="0" role="button" onclick="openWindow('log_file')" onkeydown="if(event.key==='Enter') openWindow('log_file')">
+        <span class="icon">📄</span>
+        <div class="overflow-hidden">
+          <div class="font-bold text-xs truncate">COMMUNICATION_LOG_014.txt</div>
+          <div class="text-[10px] text-emerald-500/70">Textdokument · 3 KB</div>
+        </div>
+      </div>
+    </div>
+    <p class="mt-6 text-[11px] text-emerald-600/80 italic">Wiederhergestellte Textdatei aus beschädigtem Sektor.</p>
+  </div>
+</section>
+
+<!-- ================= WINDOW 3: COMMUNICATION LOG FILE ================= -->
+<section class="terminal-window" id="log_file" aria-label="Kommunikationsprotokoll 014">
+  <header class="titlebar">
+    <span>▤ &nbsp; COMMUNICATION_LOG_014.txt — NOTEPAD</span>
+    <button class="close-btn" onclick="closeWindow('log_file')" aria-label="Schließen">×</button>
+  </header>
+  <div class="toolbar">
+    <span>DATEI</span><span>BEARBEITEN</span><span>ANSICHT</span>
+    <span class="ml-auto text-emerald-400 font-bold">NUR LESEN</span>
+  </div>
+  <div class="content-area doc-container">
+    <h2>COMMUNICATION_LOG_014.txt</h2>
+    <div class="meta-tag">
+      QUELLE: RECOVERED_USB_014<br>
+      KATEGORIE: INTERNE KOMMUNIKATION<br>
+      STATUS: TEILWEISE WIEDERHERGESTELLT<br>
+      BETEILIGTE: LEVI / UNKNOWN<br>
+      DATUM: 03.11.2026
+    </div>
+
+    <div class="space-y-1">
+      <div class="chat-entry">
+        <span class="time">[18:42:08]</span> <b class="text-emerald-300">UNKNOWN:</b><br>
+        Ist die Sache für morgen geklärt?
+      </div>
+      <div class="chat-entry levi">
+        <span class="time">[18:43:21]</span> <b class="text-[var(--green)]">LEVI:</b><br>
+        Das Treffen findet wie geplant statt. Ich werde persönlich erscheinen.
+      </div>
+      <div class="chat-entry">
+        <span class="time">[18:43:57]</span> <b class="text-emerald-300">UNKNOWN:</b><br>
+        Und die Sicherung eures Bunkers?
+      </div>
+      <div class="chat-entry levi">
+        <span class="time">[18:45:12]</span> <b class="text-[var(--green)]">LEVI:</b><br>
+        Die wird keine Rolle spielen. Ich sorge dafür, dass sich die Aufmerksamkeit auf das Treffen konzentriert.
+      </div>
+      <div class="chat-entry">
+        <span class="time">[18:45:48]</span> <b class="text-emerald-300">UNKNOWN:</b><br>
+        Du weißt, dass wir uns nicht leisten können, dass jemand dazwischenkommt.
+      </div>
+      <div class="chat-entry levi">
+        <span class="time">[18:46:33]</span> <b class="text-[var(--green)]">LEVI:</b><br>
+        Zwei Kampftruppen werden beim Treffen sein. Die dritte sollte den Bunker sichern. Ich werde argumentieren, dass niemand das wichtige Gespräch verpassen sollte.
+      </div>
+      <div class="chat-entry">
+        <span class="time">[18:47:02]</span> <b class="text-emerald-300">UNKNOWN:</b><br>
+        Und wenn deine Leute trotzdem zurückbleiben wollen?
+      </div>
+      <div class="chat-entry levi">
+        <span class="time">[18:48:19]</span> <b class="text-[var(--green)]">LEVI:</b><br>
+        Dann werde ich mich darum kümmern. Ich bin schließlich derjenige, dessen Anweisungen sie folgen.
+      </div>
+      <div class="chat-entry">
+        <span class="time">[18:49:44]</span> <b class="text-emerald-300">UNKNOWN:</b><br>
+        Wir verlassen uns darauf, Levi. Die Sache muss morgen funktionieren.
+      </div>
+      <div class="chat-entry levi">
+        <span class="time">[18:50:11]</span> <b class="text-[var(--green)]">LEVI:</b><br>
+        Wenn ihr euren Teil erledigt, wird niemand auf die Idee kommen, dass ich etwas damit zu tun hatte.
+      </div>
+      <div class="chat-entry">
+        <span class="time">[18:51:36]</span> <b class="text-emerald-300">UNKNOWN:</b><br>
+        Und Solaris?
+      </div>
+      <div class="chat-entry levi">
+        <span class="time">[18:52:04]</span> <b class="text-[var(--green)]">LEVI:</b><br>
+        Solaris wird glauben, dass wir angegriffen wurden. Genau das ist der entscheidende Punkt.
+      </div>
+      <div class="chat-entry">
+        <span class="time">[18:53:27]</span> <b class="text-emerald-300">UNKNOWN:</b><br>
+        Dann bleibt es bei unserer Vereinbarung.
+      </div>
+      <div class="chat-entry levi">
+        <span class="time">[18:54:09]</span> <b class="text-[var(--green)]">LEVI:</b><br>
+        Nach morgen ist ohnehin einiges anders.
+      </div>
+    </div>
+
+    <div class="corrupt-notice font-mono">
+      <b>[E.C.L.I.P.S.E.] SYSTEM WARNING:</b><br>
+      Verbindung unerwartet beendet.<br><br>
+      <b>[E.C.L.I.P.S.E.] SYSTEM WARNING:</b><br>
+      Datei teilweise beschädigt. Weitere Nachrichten konnten nicht wiederhergestellt werden.
+    </div>
+  </div>
+</section>
+
+<!-- ================= WINDOW 4: STROMVERSORGUNG (GESCHÜTZT) ================= -->
+<section class="terminal-window" id="folder_power" aria-label="Stromversorgung & Notstrom">
+  <header class="titlebar">
+    <span>⚡ &nbsp; STROMVERSORGUNG & NOTSTROM</span>
+    <button class="close-btn" onclick="closeWindow('folder_power')" aria-label="Schließen">×</button>
+  </header>
+  <div class="toolbar">
+    <span>USB_RECOVERY (F:)</span><span>›</span><span class="text-[var(--green)]">STROMVERSORGUNG</span>
+    <span class="ml-auto text-emerald-400">FREIGABE LEVEL 2</span>
+  </div>
+  <div class="content-area doc-container">
+    <h2>DIESEL-GENERATOREN & GEOTHERMIE-STATUS</h2>
+    <div class="meta-tag">
+      SYSTEM-KATEGORIE: INFRASTRUKTUR // ENERGIE<br>
+      STATUS: KRITISCH / PARTIELLER AUSFALL<br>
+      LETZTE WARTUNG: 28.10.2026
+    </div>
+    <div class="space-y-3">
+      <div class="p-3 bg-emerald-950/40 border border-emerald-500/20 rounded">
+        <div class="font-bold text-emerald-300 mb-1">▶ DIESEL-GENERATOREN (HAUPTPRODUKTION)</div>
+        <p class="text-xs text-emerald-400/90">
+          Treibstoff-Reservetank: <b>42% Kapazität</b>.<br>
+          Geschätzte Restlaufzeit bei Maximallast: <b>18 Tage</b>.<br>
+          Status Generator A: Aktiv (78% Auslastung)<br>
+          Status Generator B: Standby / Automatische Zündung bereit.
+        </p>
+      </div>
+
+      <div class="p-3 bg-red-950/30 border border-red-500/30 rounded">
+        <div class="font-bold text-red-400 mb-1">⚠ GEOTHERMIE-PUMPE 2 (NOTSTROM & HEIZUNG)</div>
+        <p class="text-xs text-red-300/80">
+          STATUS: DEFEKT (Druckverlust in Primärschleife).<br>
+          Notfallprotokoll aktiviert: Lüftungssystem in Sektor C auf 60% gedrosselt, um Energie zu sparen.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= WINDOW 5: BEWOHNERLISTE (GESCHÜTZT) ================= -->
+<section class="terminal-window" id="folder_residents" aria-label="Liste Bewohner">
+  <header class="titlebar"><span>👥 &nbsp; LISTE BEWOHNER & BETTENBELEGUNG</span><button class="close-btn" onclick="closeWindow('folder_residents')" aria-label="Schließen">×</button></header>
+  <div class="toolbar"><span>USB_RECOVERY (F:)</span><span>›</span><span class="text-[var(--green)]">LISTE_BEWOHNER</span></div>
+  <div class="content-area doc-container">
+    <h2>BUNKER-BEWOHNERREGISTER // INSGESAMT: 48 PERSONEN</h2>
+    <div class="meta-tag">MAX. KAPAZITÄT: 60 PERSONEN<br>QUARANTÄNE-SEKTOR: FREI</div>
+    <div class="space-y-3 text-xs">
+      <div class="p-3 bg-emerald-950/40 border border-emerald-500/30 rounded">
+        <div class="font-bold text-emerald-300">SEKTOR A (FÜHRUNG & MEDIZIN) — 11 PERSONEN</div>
+        <div class="text-emerald-400/90 mt-1">
+          • <b>LEVI</b> (Kommandant / Einsatzleitung)<br>
+          • <b>SOLARIS</b> (Stellv. Führung / Strategie)<br>
+          • <b>DR. VANCE</b> (Leitender Bunkerarzt)<br>
+          • 8 Mediziner & Verwaltungsmitarbeiter
+        </div>
+      </div>
+      <div class="p-3 bg-emerald-950/40 border border-emerald-500/30 rounded">
+        <div class="font-bold text-emerald-300">SEKTOR B (SICHERHEIT & KAMPFTRUPPEN) — 30 PERSONEN</div>
+        <div class="text-emerald-400/90 mt-1">
+          • Kampftruppe 1: 12 Einheiten (Schwere Bewaffnung)<br>
+          • Kampftruppe 2: 10 Einheiten (Taktische Aufklärung)<br>
+          • Kampftruppe 3: 8 Einheiten (Bunker-Infrastrukturschutz)
+        </div>
+      </div>
+      <div class="p-3 bg-emerald-950/40 border border-emerald-500/30 rounded">
+        <div class="font-bold text-emerald-300">SEKTOR C (TECHNIK & ZIVILISTEN) — 7 PERSONEN</div>
+        <div class="text-emerald-400/90 mt-1">• 7 Ingenieure, Warten und Techniker</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= WINDOW 6: VORRÄTE (GESCHÜTZT) ================= -->
+<section class="terminal-window" id="folder_supplies" aria-label="Vorräte & Rationen">
+  <header class="titlebar"><span>🍞 &nbsp; VORRÄTE & RATIONEN</span><button class="close-btn" onclick="closeWindow('folder_supplies')" aria-label="Schließen">×</button></header>
+  <div class="toolbar"><span>USB_RECOVERY (F:)</span><span>›</span><span class="text-[var(--green)]">VORRAETE_RATIONEN</span></div>
+  <div class="content-area doc-container">
+    <h2>RESERVERATIONEN & TRINKWASSER</h2>
+    <div class="meta-tag">VERSORGUNGSSTATUS: EINGESCHRÄNKT<br>PROPHYLAXE-MEDIKAMENTE: AUSREICHEND</div>
+    <div class="space-y-3 text-xs">
+      <div class="p-3 bg-emerald-950/40 border border-emerald-500/30 rounded">
+        <div class="font-bold text-emerald-300">TRINKWASSER-RESERVEN</div>
+        <div class="text-emerald-400/90 mt-1">Haupttank: 12.000 Liter (Gefiltert). Verbrauch ca. 350L / Tag.</div>
+      </div>
+      <div class="p-3 bg-emerald-950/40 border border-emerald-500/30 rounded">
+        <div class="font-bold text-emerald-300">NORT-RATIONEN (TROCKENNAHRUNG)</div>
+        <div class="text-emerald-400/90 mt-1">Bestand: 1.200 Packungen (Reicht für 30 Tage Vollversorgung bei aktueller Belegung).</div>
+      </div>
+      <div class="p-3 bg-amber-950/40 border border-amber-500/40 rounded text-amber-300">
+        <b>⚠ RATIONSKÜRZUNGS-ANORDNUNG:</b><br>
+        Ab dem 10.11.2026 ist eine Rationskürzung um 15% für alle Sektoren vorgesehen (Anordnung durch Levi).
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= WINDOW 7: SICHERHEIT (GESCHÜTZT) ================= -->
+<section class="terminal-window" id="folder_security" aria-label="Sicherheit Bunker">
+  <header class="titlebar"><span>🛡 &nbsp; SICHERHEIT & VERTEIDIGUNG</span><button class="close-btn" onclick="closeWindow('folder_security')" aria-label="Schließen">×</button></header>
+  <div class="toolbar"><span>USB_RECOVERY (F:)</span><span>›</span><span class="text-[var(--green)]">SICHERHEIT_BUNKER</span></div>
+  <div class="content-area doc-container">
+    <h2>DEFCON STATUS & SCHLEUSENPROTOKOLLE</h2>
+    <div class="meta-tag font-bold text-red-400">DEFCON-STATUS: 2 (ERHÖHTE ALARMBEREITSCHAFT)<br>HAUPTSCHLEUSE: VERRIEGELT</div>
+    <div class="space-y-3 text-xs">
+      <div class="p-3 bg-emerald-950/40 border border-emerald-500/30 rounded">
+        <div class="font-bold text-emerald-300">AUTOMATISCHE DEFENSIV-PROTOKOLLE</div>
+        <div class="text-emerald-400/90 mt-1">
+          Im Falle eines unbefugten Zugriffs oder externen Angriffs treten Automatik-Schotts an Ebene 1 sofort in Kraft.<br>
+          <b>Notfallschlüssel / Manuelle Freigabe:</b> Befindet sich exklusiv im Panzerschrank Sektor A.
+        </div>
+      </div>
+      <div class="p-3 bg-red-950/40 border border-red-500/40 rounded text-red-300">
+        <b>⚠ WARNHINWEIS KONTROLLVERLUST:</b><br>
+        Verteilung der Kampftruppen beachten. Falls Kampftruppe 3 ohne Befehl abgezogen wird, ist der Bunker-Zugang an Ebene 2 ungeschützt!
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= MODAL: PASSWORD AUTHENTICATION ================= -->
+<section class="terminal-window" id="auth_modal" style="z-index: 60;" aria-label="Sicherheits-Authentifizierung">
+  <header class="titlebar">
+    <span id="auth_title">🔒 &nbsp; AUTHENTIFIZIERUNG ERFORDERLICH</span>
+    <button class="close-btn" onclick="closeWindow('auth_modal')" aria-label="Schließen">×</button>
+  </header>
+  <div class="content-area">
+    <div class="max-w-xs mx-auto text-center space-y-4 my-4">
+      <div class="text-emerald-400 text-xs tracking-wider">GESCHÜTZTER BUNKER-ORDNER.<br>BITTE ZUGREEFSSCHLÜSSEL EINGEBEN:</div>
+      
+      <input 
+        type="password" 
+        id="pwd_input" 
+        class="w-full bg-[#030a06] border border-[var(--green)] text-[var(--green)] px-3 py-2 text-center font-mono text-sm tracking-widest outline-none focus:ring-2 focus:ring-emerald-400"
+        placeholder="PASSWORT"
+        autocomplete="off"
+        onkeydown="if(event.key==='Enter') verifyPassword()"
+      />
+
+      <button 
+        onclick="verifyPassword()"
+        class="w-full bg-emerald-900/60 hover:bg-emerald-700/80 border border-[var(--green)] text-[var(--green)] py-2 font-bold text-xs tracking-widest transition-colors cursor-pointer"
+      >
+        ENTSCHLÜSSELN
+      </button>
+
+      <div id="auth_error" class="hidden text-[var(--alert-red)] text-xs font-bold animate-bounce pt-2" style="text-shadow: 0 0 8px var(--alert-glow)">
+        ✖ ZUGRIFF VERWEIGERT: FALSCHER CODE
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+let activeTargetFolder = '';
+
+function openWindow(id) {
+  // Bring window to top and set active
+  document.querySelectorAll('.terminal-window').forEach(w => w.classList.remove('active'));
+  const win = document.getElementById(id);
+  if (win) {
+    win.classList.add('active');
+  }
+}
+
+function closeWindow(id) {
+  const win = document.getElementById(id);
+  if (win) {
+    win.classList.remove('active');
+  }
+}
+
+function promptPassword(folderTitle, folderId) {
+  activeTargetFolder = folderId;
+  document.getElementById('auth_title').innerText = `🔒 &nbsp; PASSWORT: ${folderTitle.toUpperCase()}`;
+  document.getElementById('auth_error').classList.add('hidden');
+  const input = document.getElementById('pwd_input');
+  input.value = '';
+  openWindow('auth_modal');
+  setTimeout(() => input.focus(), 60);
+}
+
+function verifyPassword() {
+  const input = document.getElementById('pwd_input');
+  const errorMsg = document.getElementById('auth_error');
+  
+  if (input.value === 'FALKEN') {
+    closeWindow('auth_modal');
+    openWindow(activeTargetFolder);
+  } else {
+    errorMsg.classList.remove('hidden');
+    input.value = '';
+    input.focus();
+  }
+}
+
+// Global Keyboard listeners for Escape & Accessibility
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    const activeWindows = document.querySelectorAll('.terminal-window.active');
+    activeWindows.forEach(w => w.classList.remove('active'));
+  }
+});
+</script>
+</body>
+</html>
